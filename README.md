@@ -36,36 +36,106 @@
 
 ## What This Does
 
-<!-- The path a submission takes, from arriving to the label a reader sees.
-     Six or seven steps — this is the trace you wrote in Milestone 1. -->
+Provenance Guard is a small web service a writing site could plug into. A piece
+of writing goes in; a guess, a confidence score, a plain-English label and an
+appeal route come out.
 
+**The path a submission takes**
 
+1. **The site sends it in.** `POST /submit` with JSON `{"text": ..., "creator_id": ...}`.
+2. **The route checks it** (`app.py::submit`). Text must be a string with at
+   least 5 words and at most 20,000 characters, and `creator_id` must be present.
+   Anything else gets a `400` with a reason, and the refusal is written to the
+   audit log so it isn't invisible.
+3. **It gets an id.** A new `content_id` (a UUID) is created. The appeal needs it later.
+4. **Signal one reads it** (`detector.py::model_signal`). GPT-2, running locally,
+   measures how predictable the text is → a 0–1 score (higher = more AI-like).
+5. **Signal two measures it** (`stylometry.py::style_signal`). Sentence-length
+   spread, vocabulary variety and punctuation variety → a 0–1 score (higher = more AI-like).
+6. **The two become one number** (`scoring.py::combine_signals`) — the confidence score.
+7. **The number becomes words** (`scoring.py::score_to_label`). The score falls in
+   one of three bands, and each band has a full sentence a writer reads.
+8. **It is logged and answered.** `audit.log_decision` writes timestamp, ids, both
+   signal scores, the combined score, the guess, the label and `status: decided`
+   to `logs/audit.jsonl`, and the same fields go back to the caller as JSON.
+9. **The writer can push back.** `POST /appeal` with the `content_id` and their
+   reasoning records the appeal next to the original decision and moves the item
+   to `under_review`. Nothing is re-scored automatically; a person looks at it.
+
+**Following a false positive through the service**
+
+A writer posts a short paragraph they wrote themselves, in plain, simple
+sentences with everyday words. GPT-2 finds plain writing easy to predict, so
+signal one scores it high (around 0.8, the same range as real AI text). If their
+sentences are also evenly sized, signal two agrees, and the combined score lands
+in the high-confidence AI band. The label they see says the system thinks a
+computer probably wrote their work. What they can do: send an appeal with their
+reasoning, which puts the item under review and records their side next to the
+decision. Nothing else protects them, so this is the case my thresholds are set
+around: the AI band should start high enough that one signal on its own can't
+put someone there.
+
+**The two endpoints (the contract)**
+
+`POST /submit`
+
+| Direction | Field | Type | Notes |
+|---|---|---|---|
+| in | `text` | string | required; 5+ words; max 20,000 characters |
+| in | `creator_id` | string | required; who wrote it |
+| out (200) | `content_id` | string | UUID; use it to appeal |
+| out (200) | `guess` | string | `"ai"`, `"human"` or `"unsure"` |
+| out (200) | `confidence` | number | combined score, 0.0 (human) – 1.0 (AI) |
+| out (200) | `label` | string | the sentence a reader sees |
+| out (200) | `model_score` | number | signal one, 0–1 |
+| out (200) | `style_score` | number | signal two, 0–1 |
+| out (200) | `status` | string | `"decided"` |
+| out (400) | `error`, `message` | string | e.g. `"missing_text"`, `"text_too_short"`, `"text_too_long"` |
+
+`POST /appeal`
+
+| Direction | Field | Type | Notes |
+|---|---|---|---|
+| in | `content_id` | string | required; must be one `/submit` returned |
+| in | `reasoning` | string | required; the writer's explanation |
+| out (200) | `content_id` | string | echoed back |
+| out (200) | `status` | string | `"under_review"` |
+| out (200) | `message` | string | confirmation for the writer |
+| out (400) | `error`, `message` | string | missing `content_id` or `reasoning` |
+| out (404) | `error`, `message` | string | `content_id` not found |
 
 ---
 
 ## Signals and Scoring
 
-<!-- For each signal: what property it measures, why that might differ between
-     human and AI writing, and WHAT IT CAN'T SEE.
-
-     The blind spot is not optional. If you can't name it you don't understand
-     the signal yet — and unit 8's attack set is built out of blind spots. -->
-
 ### Signal one — the model signal
 
-**What it measures:**
+**What it measures:** How predictable the text is to GPT-2 (perplexity), squashed
+to 0–1 so that low perplexity = high score = more AI-like.
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** A language model writes
+by picking likely next words, so its output is text a model finds easy to
+predict. People make odder, more specific word choices.
 
-**What it can't see:**
+**What it can't see:** Who actually wrote it. It rewards common words in short,
+ordinary sentences, so plain human writing (second-language writers, younger
+writers, anyone writing simply on purpose) scores as AI. And the reverse: AI text
+with rare or ornate words swapped in scores as human.
 
 ### Signal two — the style signal
 
-**What it measures:**
+**What it measures:** The shape of the text, without reading it: how much
+sentence lengths vary, how varied the vocabulary is, and how varied the
+punctuation is (commas, semicolons, dashes, brackets, question marks).
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** Generated prose tends
+toward even, mid-length sentences and safe, tidy punctuation. Human writing is
+lumpier: a three-word sentence next to a long one, a dash, a fragment.
 
-**What it can't see:**
+**What it can't see:** Meaning. Anything that changes the shape without changing
+the substance moves it: adding typos, splitting or joining sentences, adding
+dashes, pasting in a quote. That's cheap to do on purpose. It also can't tell a
+careful human writer with very even sentences from a model.
 
 ### The combining rule
 
