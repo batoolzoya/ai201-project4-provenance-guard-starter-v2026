@@ -242,6 +242,7 @@ $ curl.exe -X POST http://127.0.0.1:5000/submit -H "Content-Type: application/js
 ```
 
 ```json
+{
   "confidence": 0.7787,
   "content_id": "436bb0c7-58ac-4243-a2b1-4867101b452c",
   "guess": "ai",
@@ -249,7 +250,13 @@ $ curl.exe -X POST http://127.0.0.1:5000/submit -H "Content-Type: application/js
   "model_score": 0.8311,
   "status": "decided",
   "style_score": 0.7
+}
 ```
+
+I sent this text twice with identical results. The response above is from the
+second send (`436bb0c7-…`); the appeal below used the first one's id
+(`343ee138-…`), whose log entry is shown at the end of this section. Same text,
+same scores.
 
 **An appeal**
 
