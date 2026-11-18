@@ -127,7 +127,12 @@ def model_signal(text: str) -> float:
     """
     ppl = perplexity(text)
 
-    midpoint = 45.0    # perplexity that scores 0.5
+    # Moved from the starter's 45.0 to 35.0 in Milestone 5. With 45, my own
+    # writing (perplexity ~23-40) scored 0.55-0.74 on this signal, and no
+    # human text I tried could reach the "human" label at all. 35 keeps the
+    # clearly-AI calibration text (perplexity ~13) at ~0.84. Cost: every
+    # model score drops, so AI text slips through more easily.
+    midpoint = 35.0    # perplexity that scores 0.5
     steepness = 1.6    # how sharply the score moves either side of it
 
     # Logistic on log-perplexity. Low perplexity -> high AI score.

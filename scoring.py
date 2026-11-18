@@ -28,7 +28,7 @@ def combine_signals(model_score: float, style_score: float) -> float:
          (weights in config.py).
       2. Disagreement rule: if the two signals are more than 0.4 apart
          (config.DISAGREEMENT_GAP), the result is clamped into the unsure band
-         [HUMAN_THRESHOLD, AI_THRESHOLD - 0.01]. When two different methods
+         [HUMAN_THRESHOLD + 0.01, AI_THRESHOLD - 0.01]. When two different methods
          disagree that strongly, the honest answer is "unsure", and one signal
          on its own can never put a writer in the AI band.
     """
@@ -37,7 +37,7 @@ def combine_signals(model_score: float, style_score: float) -> float:
         + config.WEIGHT_STYLE_SIGNAL * style_score
     )
     if abs(model_score - style_score) > config.DISAGREEMENT_GAP:
-        combined = min(max(combined, config.HUMAN_THRESHOLD),
+        combined = min(max(combined, config.HUMAN_THRESHOLD + 0.01),
                        config.AI_THRESHOLD - 0.01)
     return round(min(max(combined, 0.0), 1.0), 4)
 
