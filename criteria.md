@@ -42,63 +42,61 @@ Two things worth knowing before you pick numbers:
   a **miss**.
 
 ---
-## 1.
+## 1. My own writing is rarely called AI (false positives)
 
-<!-- Your criterion. It must name a number. -->
-
-
+Of my 10 pieces of my own writing, at most 1 get the high-confidence AI label,
+in every one of three trials.
 
 **Why this target:**
 
-
+None of the excerpts are just a couple sentences. They are long enough that each provides sufficient data for the model to conclude it not to be AI-written predictable writing, with sufficient margin for error.
 
 ---
 
-## 2.
+## 2. All three labels are reachable (label coverage)
 
-<!-- Your criterion. -->
-
-
+My 9 coverage inputs (3 AI-generated, 3 of my own pieces, 3 I judge borderline)
+produce all 3 labels (human, unsure, AI) at least once, in every one of three
+trials.
 
 **Why this target:**
 
-
+It is reasonable to expect an effective system to be capable of identifying each category at least once in every one of three trials. 
 
 ---
 
-## 3.
+## 3. AI text and my text score clearly apart (score spread)
 
-<!-- Your criterion. -->
-
-
+The average combined score of 3 clearly AI-generated texts is at least 0.5
+higher than the average combined score of 3 of my own pieces, in every one of
+three trials.
 
 **Why this target:**
 
-
+We want the system to be confident enough that there is at least an average .5 point spread between the clear AI and human generated cases.
 
 ---
 
-## 4.
+## 4. Appeals always change status and are always recorded (appeal path)
 
-<!-- Your criterion. -->
-
-
+In every one of the three trials, 5 of 5 appeals sent with a real content_id return 200 and the audit log then shows status under_review for that id. An appeal with a made-up content_id returns 404, not 200.
 
 **Why this target:**
 
-
+The writers should be able to rely upon their appeals being considered.
 
 ---
 
-## 5.
+## 5. Bad input is refused cleanly (bad input)
 
-<!-- Your criterion. -->
-
-
+All 6 malformed requests (empty text, no text field, text null, a number instead
+of text, text over 20,000 characters, no creator_id) return 400, none return 500,
+and each one leaves a rejected entry in the audit log, in every one of three
+trials.
 
 **Why this target:**
 
-
+We should be able to maintain a log trace every time.
 
 ---
 
