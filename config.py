@@ -54,8 +54,16 @@ DETECTOR_MAX_TOKENS = 400
 # down BEFORE you code it, and to put the numbers in your README. Whatever you
 # decide, it goes here.
 
-WEIGHT_MODEL_SIGNAL = 0.5
-WEIGHT_STYLE_SIGNAL = 0.5
+# My rule (scoring.py::combine_signals): weighted average, model 0.6 / style
+# 0.4, because the model signal reads the whole text while the style signal
+# only counts surface features. But if the two signals disagree by more than
+# DISAGREEMENT_GAP, the result is held inside the unsure band — two methods
+# disagreeing IS uncertainty, and one signal alone must never be enough to
+# label someone's work as AI.
+
+WEIGHT_MODEL_SIGNAL = 0.6
+WEIGHT_STYLE_SIGNAL = 0.4
+DISAGREEMENT_GAP = 0.4
 
 
 # ─── Thresholds (Milestone 5) ────────────────────────────────────────────────
@@ -71,8 +79,11 @@ WEIGHT_STYLE_SIGNAL = 0.5
 # getting through. There is no setting that avoids the trade — only settings
 # that decide who pays for it.
 
+# AI_THRESHOLD is 0.70 so that a model score of 1.0 alone (with a style score
+# of 0) only reaches 0.60 — still unsure. Both signals have to lean AI.
+
 HUMAN_THRESHOLD = 0.35
-AI_THRESHOLD = 0.65
+AI_THRESHOLD = 0.70
 
 # ⚠️ One thing that catches people out in Milestone 5. A weighted average can
 # only land between its two inputs — so while `style_signal` is still the stub
@@ -83,6 +94,12 @@ AI_THRESHOLD = 0.65
 # If a label you can't reach is the problem, the fix is upstream of the
 # thresholds: a style signal that actually varies. `scoring.label_ranges()`
 # prints the bands; the reachable range is a different question.
+
+
+# ─── Input limits (the route checks these before any signal runs) ──────────
+
+MIN_WORDS = 5            # fewer words than this -> 400 text_too_short
+MAX_TEXT_CHARS = 20000   # more characters than this -> 400 text_too_long
 
 
 # ─── Rate limiting (UNIT 8) ──────────────────────────────────────────────────
