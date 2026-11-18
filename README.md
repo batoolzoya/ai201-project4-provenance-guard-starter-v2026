@@ -139,105 +139,215 @@ careful human writer with very even sentences from a model.
 
 ### The combining rule
 
-<!-- Write the rule in words, then give the numbers. What happens when the two
-     signals disagree? -->
+**The rule:** A weighted average of the two signals, plus one rule for when they
+disagree. If the two signals are more than 0.4 apart, the combined score is held
+inside the unsure band (0.36 – 0.69), whatever the average says. Two different
+methods disagreeing that strongly *is* uncertainty, and I don't want one signal
+on its own to be able to put a writer's work in the AI band.
 
-**The rule:**
+**The numbers** (all in `config.py`):
 
-**The numbers:**
+| Setting | Value | Why |
+|---|---|---|
+| `WEIGHT_MODEL_SIGNAL` | 0.6 | it reads the whole text, not just surface features |
+| `WEIGHT_STYLE_SIGNAL` | 0.4 | cheap to fool (typos, split sentences), so it counts less |
+| `DISAGREEMENT_GAP` | 0.4 | a gap bigger than this means "unsure" |
+| `HUMAN_THRESHOLD` | 0.35 | at or below → high-confidence human |
+| `AI_THRESHOLD` | 0.70 | at or above → high-confidence AI. Set so a model score of 1.0 with a style score of 0 only reaches 0.60: both signals have to lean AI |
+
+Inside signal two (`stylometry.py::style_signal`): each measure is mapped onto
+0–1 "AI-likeness" between two anchor values, then
+`style = 0.4 × sentence-length spread + 0.3 × vocabulary variety (MATTR) + 0.3 × expressive punctuation`.
 
 **Where it lives:** `scoring.py::combine_signals`
 
-<!-- ⚠️ The grader checks your code against that line. If your rule lives
-     somewhere else, say where. -->
+**One calibration change, made in Milestone 5:** signal one maps perplexity to
+0–1 around a midpoint, the perplexity that scores 0.5. The starter's midpoint
+was 45. With it, my own writing (perplexity about 23–40) scored 0.55–0.74 on
+signal one, and none of 13 human pieces could reach the human label: the lowest
+combined score was 0.371. I moved the midpoint to **35** in
+`detector.py::model_signal`. The clearly-AI text still scores 0.84 on signal one.
+The cost is that every model score drops, so AI text slips through more easily.
+I tuned this on my own writing, which is also the test set for criterion 1, so
+that criterion got a little easier to meet.
+
+**Calibration inputs** (real runs of `try_inputs.py`; my own pieces are kept out
+of the repo, so only scores are shown)
+
+| Input | Model (mid 45) | Style | Combined (mid 45) | Model (mid 35) | Combined (mid 35) | Label (mid 35) |
+|---|---|---|---|---|---|---|
+| clearly AI | 0.885 | 0.606 | 0.774 | 0.838 | 0.745 | AI |
+| lightly-edited AI | 0.456 | 0.390 | 0.429 | 0.359 | 0.371 | unsure |
+| my piece #1 | 0.616 | 0.405 | 0.531 | 0.518 | 0.472 | unsure |
+| my piece #2 | 0.718 | 0.442 | 0.607 | 0.630 | 0.554 | unsure |
+| my piece #3 | 0.722 | 0.349 | 0.572 | 0.634 | 0.520 | unsure |
+| my piece #4 | 0.690 | 0.501 | 0.614 | 0.598 | 0.559 | unsure |
+| my piece #5 | 0.551 | 0.536 | 0.545 | 0.451 | 0.485 | unsure |
+| my piece #6 | 0.716 | 0.185 | 0.504 | 0.628 | 0.451 | unsure |
+| my piece #7 | 0.740 | 0.385 | 0.598 | 0.655 | 0.547 | unsure |
+| my piece #8 | 0.636 | 0.256 | 0.484 | 0.539 | 0.426 | unsure |
+| my piece #9 | 0.624 | 0.585 | 0.608 | 0.526 | 0.550 | unsure |
+| my piece #10 | 0.362 | 0.385 | 0.371 | 0.275 | 0.319 | **human** |
+| my extra #1 | 0.622 | 0.113 | 0.418 | 0.524 | 0.360 | unsure |
+| my extra #2 | 0.605 | 0.327 | 0.494 | 0.506 | 0.435 | unsure |
+| my extra #3 | 0.460 | 0.801 | 0.597 | 0.363 | 0.538 | unsure |
+
+What this shows: signal one leans AI on almost all of my writing, and signal two
+is what pulls it back. Light editing (contractions, a dash, a split sentence)
+dropped the AI text from 0.885 to 0.456 on signal one, which is a weak spot to
+expect in the next unit's attacks.
 
 **A case where my two signals split, and what my rule does with it:**
 
-
+My piece #6: signal one 0.628 ("leans AI"), signal two 0.185 ("very human"), a
+gap of 0.44. That is over 0.4, so the disagreement rule applies and the result
+is held in the unsure band: combined 0.451, unsure. Here the plain average
+(0.451) was already in the band, so the rule changed nothing. It matters when one
+signal is extreme: model 1.0 with style 0.5 averages to 0.80 (AI), but the gap
+is 0.5, so the rule holds it at 0.69 (unsure). My extra #1 (0.524 vs 0.113, gap
+0.41) is the closest real case: the average 0.359 was raised to 0.36. Both are
+unsure, so the label didn't change.
 
 ---
 
 ## Label Variants
 
-<!-- The exact text of all three labels, as a reader would see them, and the
-     score range each covers.
-
-     Write them for someone who has never heard the word "threshold". -->
+Score ranges come from `scoring.label_ranges()`. Every score from 0 to 1 falls
+in exactly one band, and all three were reached by real submissions (table above).
 
 | Label | Score range | The exact text a reader sees |
 |---|---|---|
-| high-confidence human |  |  |
-| unsure |  |  |
-| high-confidence AI |  |  |
+| high-confidence human | 0.00 – 0.35 | We think this was written by a person. |
+| unsure | above 0.35, below 0.70 | Our automated check couldn't tell whether this was written by a person or with an AI tool. That happens often with ordinary writing, and it is not an accusation. If you'd like a person to look at it, you can ask for a review. |
+| high-confidence AI | 0.70 – 1.00 | This piece reads very much like text written by an AI tool. This is an automated guess, not proof, and it can be wrong. If you wrote it yourself, you can appeal and a person will review it. |
 
 **Why I worded the "unsure" one this way:**
-<!-- It's the hardest of the three. It has to admit uncertainty without
-     sounding like an accusation, because the person reading it may well have
-     written every word themselves. -->
 
-
+All 10 of my own pieces got this label, so it's the one real writers will see
+most. It has to admit the system doesn't know, say that this happens to ordinary
+writing, and say plainly that it isn't an accusation, while still giving the
+writer a next step. When I had the labels read back as a writer would, the risk
+was that "not an accusation" could still make someone feel suspected, and that
+"review of what?" isn't obvious. I kept the wording and noted it as something
+the next unit could test.
 
 ---
 
 ## Sample Run
 
-<!-- One submission and one appeal, pasted as text: the request, the response,
-     and the log entries. -->
-
-**A submission**
-
-<!-- The response needs content_id, guess, confidence, label, AND both
-     signal scores - model_score and style_score. Unit 8's tools read those
-     two off the response, so leaving them out costs you next unit's
-     diagnostics. -->
+**A submission** (after the Milestone 5 recalibration)
 
 ```bash
-$ curl -X POST http://127.0.0.1:5000/submit \
-  -H "Content-Type: application/json" \
-  -d '{"text": "...", "creator_id": "..."}'
+$ curl.exe -X POST http://127.0.0.1:5000/submit -H "Content-Type: application/json" -d '{\"text\": \"Time management is an essential skill for students who want to succeed academically. By creating a schedule and prioritizing tasks, students can reduce stress and improve their overall performance.\", \"creator_id\": \"zoya\"}'
 ```
 
 ```json
-
+  "confidence": 0.7787,
+  "content_id": "436bb0c7-58ac-4243-a2b1-4867101b452c",
+  "guess": "ai",
+  "label": "This piece reads very much like text written by an AI tool. This is an automated guess, not proof, and it can be wrong. If you wrote it yourself, you can appeal and a person will review it.",
+  "model_score": 0.8311,
+  "status": "decided",
+  "style_score": 0.7
 ```
 
 **An appeal**
 
 ```bash
-$ curl -X POST http://127.0.0.1:5000/appeal \
-  -H "Content-Type: application/json" \
-  -d '{"content_id": "...", "reasoning": "..."}'
+$ curl.exe -X POST http://127.0.0.1:5000/appeal -H "Content-Type: application/json" -d '{\"content_id\": \"343ee138-7f94-4d63-8162-225029ab5235\", \"reasoning\": \"I wrote this myself for a class discussion post.\"}'
 ```
 
 ```json
-
+{
+  "content_id": "343ee138-7f94-4d63-8162-225029ab5235",
+  "message": "Thanks — your appeal is recorded and a person will review this decision. The original label stays until then.",
+  "status": "under_review"
+}
 ```
 
 **What the log shows afterwards**
 
 ```bash
-$ curl "http://127.0.0.1:5000/log?limit=3"
+$ curl.exe "http://127.0.0.1:5000/log?limit=2"
 ```
 
 ```json
+{
+  "count": 2,
+  "entries": [
+    {
+      "content_id": "NEW_ID_HERE",
+      "creator_id": "unknown",
+      "event": "rejected",
+      "http_status": 404,
+      "reason": "unknown_content_id",
+      "status": "rejected",
+      "timestamp": "2026-11-18T06:59:02+00:00"
+    },
+    {
+      "content_id": "343ee138-7f94-4d63-8162-225029ab5235",
+      "creator_id": "zoya",
+      "event": "appeal",
+      "reasoning": "I wrote this myself for a class discussion post.",
+      "status": "under_review",
+      "timestamp": "2026-11-18T07:00:53+00:00"
+    }
+  ]
+}
+```
 
+The first entry is a real mistake of mine: I sent the placeholder `NEW_ID_HERE`
+instead of the id. The service refused it with a 404 and logged the refusal,
+which is what criterion 4 asks for. The second is the real appeal.
+
+The original decision for that content_id, as it sits in `logs/audit.jsonl`
+(the log is append-only, so the appeal sits after it rather than overwriting it):
+
+```json
+{
+  "combined_score": 0.7787,
+  "content_id": "343ee138-7f94-4d63-8162-225029ab5235",
+  "creator_id": "zoya",
+  "guess": "ai",
+  "label": "This piece reads very much like text written by an AI tool. This is an automated guess, not proof, and it can be wrong. If you wrote it yourself, you can appeal and a person will review it.",
+  "model_score": 0.8311,
+  "status": "decided",
+  "style_score": 0.7,
+  "text_chars": 197,
+  "timestamp": "2026-11-18T06:58:56+00:00"
+}
 ```
 
 ---
 
 ## How I Used AI
 
+I used Claude to write the code and draft this README from my real output. I
+ran everything, wrote the criteria and their numbers, and made the calls below.
+
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* For criterion 1 (how often my own writing may be called
+  AI), I asked Claude to write the message a real writer would send me if they
+  were one of the people my rate allows, without telling me if my number was right.
+- *What came back:* A message from a writer whose plain-English essay was
+  labelled AI, pointing out that my system allows this for "two out of every ten
+  writers" and asking whether anyone was going to tell them before they posted.
+- *What I changed:* I lowered my target from at most 2 of 10 to at most 1 of 10
+  and rewrote the reason.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* After the first real run, none of my human writing could
+  reach the "human" label. I asked what my options were.
+- *What came back:* Five options with estimated effects on my real scores: try
+  different writing, move signal one's midpoint to 35 or 30, raise the human
+  threshold to 0.40, or change nothing and document it. Each came with its cost
+  (for example, midpoint 30 would have labelled the lightly-edited AI text "written
+  by a person").
+- *What I changed:* I chose to move the midpoint from 45 to 35, fixing the
+  signal that was miscalibrated rather than moving a threshold. I recorded the
+  cost and the fact that I tuned on my own test pieces (see Signals and Scoring).
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
