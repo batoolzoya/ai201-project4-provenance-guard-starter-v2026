@@ -9,6 +9,8 @@ Used for the Milestone 4 calibration inputs (clearly AI, lightly-edited AI,
 and my own writing). My own writing is read from private/my_writing.txt,
 which is git-ignored: pieces are separated by a line containing only ---.
 Only piece numbers and scores are printed, never the text itself.
+
+    python try_inputs.py private\\extra.txt    # score only the pieces in another file
 """
 
 import sys
@@ -40,17 +42,21 @@ AI_EDITED = (
 )
 
 
-def my_pieces():
-    if not PRIVATE.exists():
-        print(f"(no {PRIVATE} — skipping my own writing)")
+def my_pieces(path=PRIVATE):
+    if not path.exists():
+        print(f"(no {path} — skipping)")
         return []
-    raw = PRIVATE.read_text(encoding="utf-8-sig")
+    raw = path.read_text(encoding="utf-8-sig")
     return [p.strip() for p in raw.split("\n---") if p.strip().strip("-").strip()]
 
 
 def main():
-    inputs = [("clearly AI", AI_CLEAR), ("lightly-edited AI", AI_EDITED)]
-    inputs += [(f"my piece #{i}", t) for i, t in enumerate(my_pieces(), 1)]
+    if len(sys.argv) > 1:
+        extra = Path(sys.argv[1])
+        inputs = [(f"{extra.stem} #{i}", t) for i, t in enumerate(my_pieces(extra), 1)]
+    else:
+        inputs = [("clearly AI", AI_CLEAR), ("lightly-edited AI", AI_EDITED)]
+        inputs += [(f"my piece #{i}", t) for i, t in enumerate(my_pieces(), 1)]
 
     print(f"{'input':<20}{'words':>6}{'model':>8}{'style':>8}{'combined':>10}  guess")
     print("-" * 62)
