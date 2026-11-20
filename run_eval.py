@@ -13,8 +13,8 @@ Fill in `scenarios.py` first — that's where you say what each criterion needs
 run against it. A criterion about false positives needs your own writing. One
 about label coverage needs inputs across the score range.
 
-!! Three trials, and **your first signal runs a model, so identical input can
-score differently twice.** That's exactly why repeats matter here.
+Three trials. Neither signal is random, so identical input should score
+identically; the repeats show the result holds.
 
 This does the sending and the recording. It does not decide whether a trial
 passed — that depends on the criterion you wrote, so the Verdict column comes
@@ -56,6 +56,101 @@ def bodies_for(scenario):
         {"text": text, "creator_id": f"eval_{scenario['name'][:12]}_{i}"}
         for i, text in enumerate(scenario["texts"], 1)
     ]
+
+
+def run_submissions(requests, args, scenario):
+    """Send every body in one scenario once. Returns one result per body."""
+    names = scenario.get("names") or []
+    results = []
+    for i, body in enumerate(bodies_for(scenario)):
+        preview = names[i] if i < len(names) else describe(body)
+        try:
+            response = requests.post(f"{args.url}/submit", json=body,
+                                     timeout=args.timeout)
+            payload = response.json() if response.content else {}
+            results.append({
+                "sent": preview,
+                "status": response.status_code,
+                "guess": payload.get("guess"),
+                "confidence": payload.get("confidence"),
+                "model_score": payload.get("model_score"),
+                "style_score": payload.get("style_score"),
+                "error": payload.get("error"),
+            })
+        except Exception as exc:  # noqa: BLE001
+            results.append({"sent": preview, "status": None,
+                            "error": f"{type(exc).__name__}: {exc}"})
+    return results
+
+
+def submission_summary(scenario, results):
+    """Counts only — whether that meets the criterion is my call, not this script's."""
+    guesses = [r.get("guess") for r in results]
+    statuses = [r.get("status") for r in results]
+    parts = [f"ai={guesses.count('ai')} unsure={guesses.count('unsure')} "
+             f"human={guesses.count('human')}"]
+    if any(s != 200 for s in statuses):
+        parts.append("statuses=" + ",".join(str(s) for s in statuses))
+    for group, indexes in (scenario.get("groups") or {}).items():
+        scores = [results[i].get("confidence") for i in indexes]
+        if all(isinstance(x, (int, float)) for x in scores):
+            parts.append(f"mean[{group}]={sum(scores) / len(scores):.3f}")
+    return " · ".join(parts)
+
+
+def run_appeals(requests, args, scenario, trial):
+    """
+    Criterion 4: submit each text, appeal the content_id that came back, then
+    read the audit log to see whether that id's latest status is under_review.
+    Ends with one appeal against a made-up content_id, which should be 404.
+    """
+    results = []
+    for i, text in enumerate(scenario["appeal_texts"], 1):
+        result = {"sent": f"appeal test #{i}"}
+        try:
+            sub = requests.post(f"{args.url}/submit", timeout=args.timeout,
+                                json={"text": text,
+                                      "creator_id": f"eval_appeal_{i}"})
+            result["submit_status"] = sub.status_code
+            content_id = sub.json().get("content_id")
+            result["content_id"] = content_id
+            app = requests.post(f"{args.url}/appeal", timeout=args.timeout,
+                                json={"content_id": content_id,
+                                      "reasoning": f"Eval trial {trial}: I wrote this myself."})
+            result["appeal_status"] = app.status_code
+            entries = requests.get(f"{args.url}/log", timeout=args.timeout).json()["entries"]
+            mine = [e for e in entries if e.get("content_id") == content_id]
+            result["log_status_after"] = mine[-1].get("status") if mine else None
+            result["log_has_appeal_entry"] = any(e.get("event") == "appeal" for e in mine)
+        except Exception as exc:  # noqa: BLE001
+            result["error"] = f"{type(exc).__name__}: {exc}"
+        results.append(result)
+
+    fake = f"made-up-id-trial-{trial}"
+    try:
+        app = requests.post(f"{args.url}/appeal", timeout=args.timeout,
+                            json={"content_id": fake, "reasoning": "testing"})
+        results.append({"sent": "appeal with a made-up content_id",
+                        "content_id": fake, "appeal_status": app.status_code})
+    except Exception as exc:  # noqa: BLE001
+        results.append({"sent": "appeal with a made-up content_id",
+                        "error": f"{type(exc).__name__}: {exc}"})
+    return results
+
+
+def count_rejections(requests, args):
+    """How many 'rejected' entries the audit log holds right now."""
+    entries = requests.get(f"{args.url}/log", timeout=args.timeout).json()["entries"]
+    return sum(1 for e in entries if e.get("event") == "rejected")
+
+
+def appeal_summary(results):
+    real = [r for r in results if r.get("sent", "").startswith("appeal test")]
+    ok = sum(1 for r in real if r.get("appeal_status") == 200
+             and r.get("log_status_after") == "under_review"
+             and r.get("log_has_appeal_entry"))
+    fake = results[-1].get("appeal_status")
+    return f"{ok}/{len(real)} appeals 200 + under_review in log · made-up id -> {fake}"
 
 
 def describe(body):
@@ -112,29 +207,18 @@ def main():
 
         trials = []
         for trial in range(1, args.trials + 1):
-            results = []
-            for i, body in enumerate(bodies_for(scenario), 1):
-                preview = describe(body)
-                try:
-                    response = requests.post(f"{args.url}/submit", json=body,
-                                             timeout=args.timeout)
-                    payload = response.json() if response.content else {}
-                    results.append({
-                        "status": response.status_code,
-                        "guess": payload.get("guess"),
-                        "confidence": payload.get("confidence"),
-                        "model_score": payload.get("model_score"),
-                        "style_score": payload.get("style_score"),
-                        "label": payload.get("label"),
-                        "sent": preview,
-                    })
-                except Exception as exc:  # noqa: BLE001
-                    results.append({"status": None, "error": f"{type(exc).__name__}: {exc}",
-                                    "sent": preview})
-
-            trials.append(results)
-            guesses = [r.get("guess") or "—" for r in results]
-            print(f"  trial {trial}: {', '.join(guesses)}")
+            if scenario.get("appeal_texts"):
+                results = run_appeals(requests, args, scenario, trial)
+                summary = appeal_summary(results)
+            else:
+                rejected_before = count_rejections(requests, args)
+                results = run_submissions(requests, args, scenario)
+                summary = submission_summary(scenario, results)
+                if scenario.get("bodies"):
+                    added = count_rejections(requests, args) - rejected_before
+                    summary += f" · new 'rejected' log entries={added}"
+            trials.append({"summary": summary, "results": results})
+            print(f"  trial {trial}: {summary}")
 
         rows.append({"scenario": scenario, "trials": trials})
 
@@ -171,16 +255,25 @@ def write_report(rows, args):
         name = f"{number}. {scenario['name']}" if number else scenario["name"]
         lines.append(f"| {name} |  | {' | '.join([' '] * n)} |  |")
 
-    lines += ["", "---", "", "## What actually came back", "",
-              "Real output. Paste the relevant parts into your README — the rubric",
-              "asks for the actual JSON, not a description of it.", ""]
+    lines += ["", "## Per-trial counts (facts, not verdicts)", ""]
+    for row in rows:
+        scenario = row["scenario"]
+        lines.append(f"**{scenario.get('criterion')}. {scenario['name']}**")
+        lines.append("")
+        for t, trial in enumerate(row["trials"], 1):
+            lines.append(f"- Trial {t}: {trial['summary']}")
+        lines.append("")
+
+    lines += ["---", "", "## What actually came back", "",
+              "Real output. My own writing shows as \"my piece #N\" — the text",
+              "itself stays in the git-ignored private/ folder.", ""]
 
     for row in rows:
         scenario = row["scenario"]
         lines += [f"### {scenario['name']}", ""]
-        for trial_number, results in enumerate(row["trials"], 1):
-            lines += [f"**Trial {trial_number}**", "", "```json",
-                      json.dumps(results, indent=2), "```", ""]
+        for trial_number, trial in enumerate(row["trials"], 1):
+            lines += [f"**Trial {trial_number}** — {trial['summary']}", "", "```json",
+                      json.dumps(trial["results"], indent=2), "```", ""]
 
     path.write_text("\n".join(lines), encoding="utf-8")
     print(f"\nWrote {path.relative_to(config.ROOT)}")
