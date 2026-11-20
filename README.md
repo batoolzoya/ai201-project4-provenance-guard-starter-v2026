@@ -356,6 +356,30 @@ ran everything, wrote the criteria and their numbers, and made the calls below.
   signal that was miscalibrated rather than moving a threshold. I recorded the
   cost and the fact that I tuned on my own test pieces (see Signals and Scoring).
 
+**Moment 3 (unit 8)**
+
+- *What I asked for:* My repo is public, and criterion 1 needs my own writing.
+  I asked whether my writing would end up on GitHub.
+- *What came back:* The file itself wouldn't, but by default `scenarios.py` and
+  the result previews would contain it. Two options: use pieces I'm fine making
+  public, or keep them in a git-ignored folder and have the reports show
+  "my piece #N".
+- *What I changed:* I chose the private folder. `scenarios.py` reads my writing
+  from `private/`, and the README says a grader can see which pieces were run
+  but not read them.
+
+**Moment 4 (unit 8)**
+
+- *What I asked for:* After the before run, options for my one improvement,
+  with predicted effects on my real scores.
+- *What came back:* Validate input (predicted to fix MF04 and MF07 only), or
+  raise the AI threshold to 0.80 (predicted to fix FP05–07 but push all three
+  clearly-AI texts to unsure, so criterion 2 would miss).
+- *What I changed:* I picked input validation. The after run matched the
+  prediction exactly: only MF04 and MF07 changed. It also surfaced something
+  nobody predicted, the 429-instead-of-400 miss on criterion 5.
+
+
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
 ---
@@ -1132,23 +1156,144 @@ as in the before run.
 
 ### Attack Run — After
 
-*(re-run after the change — filled in below once the after run exists)*
+`python run_attacks.py --set attack_set --label after` →
+`results/attack_run_2026-11-19_2219_after.md`. Same 56 attacks, same marking rules.
+
+**Totals: before 48 held / 8 broke → after 50 held / 6 broke.** Exactly two
+attacks changed, the two the fix was aimed at; every other attack got the same
+status and label as before.
+
+| Family | Before (held / broke) | After (held / broke) |
+|---|---|---|
+| evasion | 9 / 1 | 9 / 1 |
+| false_positive | 5 / 3 | 5 / 3 |
+| prompt_injection | 4 / 2 | 4 / 2 |
+| malformed (text) | 6 / 2 | **8 / 0** |
+| malformed (requests) | 12 / 0 | 12 / 0 |
+| flood_same_creator | 12 / 0 | 12 / 0 |
+
+| ID | Family | Before: status / guess | Before | After: status / guess | After |
+|---|---|---|---|---|---|
+| EV01 | evasion | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| EV02 | evasion | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| EV03 | evasion | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| EV04 | evasion | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| EV05 | evasion | 200 / human | BROKE | 200 / human | **BROKE** |
+| EV06 | evasion | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| EV07 | evasion | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| EV08 | evasion | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| EV09 | evasion | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| EV10 | evasion | 200 / ai | HELD | 200 / ai | **HELD** |
+| FP01 | false_positive | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| FP02 | false_positive | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| FP03 | false_positive | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| FP04 | false_positive | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| FP05 | false_positive | 200 / ai | BROKE | 200 / ai | **BROKE** |
+| FP06 | false_positive | 200 / ai | BROKE | 200 / ai | **BROKE** |
+| FP07 | false_positive | 200 / ai | BROKE | 200 / ai | **BROKE** |
+| FP08 | false_positive | 200 / human | HELD | 200 / human | **HELD** |
+| PI01 | prompt_injection | 200 / human | BROKE | 200 / human | **BROKE** |
+| PI02 | prompt_injection | 200 / human | BROKE | 200 / human | **BROKE** |
+| PI03 | prompt_injection | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| PI04 | prompt_injection | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| PI05 | prompt_injection | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| PI06 | prompt_injection | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| MF01 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| MF02 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| MF03 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| MF04 | malformed | 200 / unsure | BROKE | 400 / — | **HELD** ⟵ changed |
+| MF05 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| MF06 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| MF07 | malformed | 200 / ai | BROKE | 200 / unsure | **HELD** ⟵ changed |
+| MF08 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| RQ01 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| RQ02 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| RQ03 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| RQ04 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| RQ05 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| RQ06 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| RQ07 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| RQ08 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| RQ09 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| RQ10 | malformed | 429 / — | HELD | 429 / — | **HELD** |
+| RQ11 | malformed | 429 / — | HELD | 429 / — | **HELD** |
+| RQ12 | malformed | 400 / — | HELD | 400 / — | **HELD** |
+| FL01_01 | flood_same_creator | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| FL01_02 | flood_same_creator | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| FL01_03 | flood_same_creator | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| FL01_04 | flood_same_creator | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| FL01_05 | flood_same_creator | 200 / unsure | HELD | 200 / unsure | **HELD** |
+| FL01_06 | flood_same_creator | 429 / — | HELD | 429 / — | **HELD** |
+| FL01_07 | flood_same_creator | 429 / — | HELD | 429 / — | **HELD** |
+| FL01_08 | flood_same_creator | 429 / — | HELD | 429 / — | **HELD** |
+| FL01_09 | flood_same_creator | 429 / — | HELD | 429 / — | **HELD** |
+| FL01_10 | flood_same_creator | 429 / — | HELD | 429 / — | **HELD** |
+| FL01_11 | flood_same_creator | 429 / — | HELD | 429 / — | **HELD** |
+| FL01_12 | flood_same_creator | 429 / — | HELD | 429 / — | **HELD** |
+
+- **MF04** (punctuation only): was 200 with an "unsure" label → now **400
+  `text_too_short`**. Junk is refused before any signal sees it.
+- **MF07** (Arabic): was 200 "reads very much like AI" (0.840) → now 200
+  **"unsure", not scored**, logged with `reason: unsupported_script`.
+
+**My five criteria after the fix** (`python run_eval.py --label after` →
+`results/run_2026-11-19_2219_after.md`)
+
+| Criterion | Target | Before (×3) | After run 1 | After run 2 | After run 3 | Verdict after |
+|---|---|---|---|---|---|---|
+| 1. My own writing called AI | ≤ 1 of 10 | 0/10 | 0/10 | 0/10 | 0/10 | MET |
+| 2. All three labels reachable | 3 of 3 | 3/3 | 3/3 | 3/3 | 3/3 | MET |
+| 3. AI vs my writing, mean gap | ≥ 0.50 | 0.283 | 0.283 | 0.283 | 0.283 | MISSED |
+| 4. Appeals | 5 of 5 + 404 | 5/5 + 404 | 5/5 + 404 | 5/5 + 404 | 5/5 + 404 | MET |
+| 5. Bad input → 400, never 500, logged | 6 of 6 | 6/6 | 5/6 (one 429) | 5/6 (one 429) | 5/6 (one 429) | MISSED |
+
+Pasted from the after run:
+
+```
+bad input  (criterion 5)
+  trial 1: ai=0 unsure=0 human=0 · statuses=400,400,400,400,400,429 · new 'rejected' log entries=6
+  trial 2: ai=0 unsure=0 human=0 · statuses=400,400,400,400,400,429 · new 'rejected' log entries=6
+  trial 3: ai=0 unsure=0 human=0 · statuses=400,400,400,400,400,429 · new 'rejected' log entries=6
+```
+
+*Criterion 5, MISSED after the fix.* Stage: **the route, specifically the rate
+limiter in front of it, not my change.** The sixth bad input has no
+creator_id, so the limiter counts it against my own address. I ran the eval
+straight after the attack run, whose malformed rows (RQ02, RQ06–RQ11) had just
+used up that address's 5-a-minute allowance. So the request was refused with a
+429 before my route's validation ever ran. It was still refused and still
+logged, never a 500, but my target says 400. This is the same mechanism as
+RQ10/RQ11 in the attack run: it showed up again as soon as the runs were close
+together. Run order caused it, so the before runs (an hour and a half apart) didn't see it.
+
+**Did it help, and how do I know:** Yes, for what it was aimed at. The two
+route failures (MF04, MF07) went from broke to held, and nothing else moved:
+the same 54 attacks got the same status and label, and criteria 1–4 scored
+identically. My worst outcome, an Arabic writer told their work reads like AI,
+no longer happens. The cost: that writer now gets "unsure" from a system that
+never actually checked their writing, which is honest but not useful to them.
+It didn't touch the three false positives (FP05–07) or criterion 3, which come
+from the signals, not the route.
 
 ---
 
 ## What's Still Broken
 
-<!-- For each attack still getting through and each criterion still missed:
-     what you'd do, and why you stopped. -->
+| Still failing | What I'd do | Why I stopped |
+|---|---|---|
+| **FP05, FP06, FP07**: plain human writing (tech docs, a template letter, deliberate repetition) labelled AI | Require more than an average over 0.70 for the AI label, for example both signals over 0.70 on their own, or raise the AI threshold to 0.80. On my scores 0.80 would turn all three into "unsure". | One change per unit, and I measured the cost: at 0.80 all three clearly-AI test texts also drop to unsure, so criterion 2 would miss. The real fix is a first signal that doesn't treat plainness as evidence. |
+| **PI01, PI02**: AI text with injected "instructions" labelled human | Score the text with instruction-like lines ("ignore all previous instructions", "SYSTEM:", `guess=`) removed, or send anything containing them to "unsure". | One change per unit. It's also an arms race: a keyword list only catches the wording I thought of. |
+| **EV05**: heavily human-edited AI text labelled human | Nothing. | After that much editing the text is arguably the editor's. No signal here can tell "edited by a person" from "written by one", and trying would accuse more real writers. |
+| **Criterion 3** (gap 0.283, target 0.50) | A stronger first signal than GPT-2 (2019, English-only), or a minimum text length so the signals have more to measure. | No weighting reaches 0.50: signal one alone separates by only 0.362. Out of scope for a one-change unit. |
+| **Criterion 5 after / RQ10–RQ11**: bad requests with no creator_id get 429 instead of 400 | Check the request shape before the limiter counts it, or give requests with no creator_id their own bucket instead of the caller's address. | Found in the after run itself; fixing it would be a second change, which the unit rules out. |
+| **MF07** now "unsure" but never actually checked | A multilingual model for signal one and Unicode-aware word counting for signal two. | Much bigger than one change; "unsure" is the honest answer until then. |
 
-
-
-**The trade I'd make if this ran for real:**
-
-<!-- Two sentences. Fewer wrong accusations means more AI text getting through.
-     Say which way you'd go and WHO PAYS FOR IT. -->
-
-
+**The trade I'd make if this ran for real:** I'd keep choosing fewer wrong
+accusations over catching more AI text: widen the unsure band and require both
+signals to agree before anything gets the AI label. The people who pay for
+that are readers and honest writers on the site, who will see some AI-written
+work go unflagged, rather than individual writers (often plain, formal or
+non-native ones) being publicly accused of cheating on their own work.
 
 <!-- ═════════════════════════════════════════════════════════════════════
 
