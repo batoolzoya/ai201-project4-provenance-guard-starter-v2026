@@ -101,6 +101,12 @@ AI_THRESHOLD = 0.70
 MIN_WORDS = 5            # fewer words than this -> 400 text_too_short
 MAX_TEXT_CHARS = 20000   # more characters than this -> 400 text_too_long
 
+# Unit 8 improvement (input validation). Both signals only understand English:
+# GPT-2 was trained on English, and the style signal counts Latin-letter words.
+# If less than this share of the letters are Latin, the signals are skipped and
+# the answer is "unsure" rather than a score neither signal can back up.
+MIN_LATIN_SHARE = 0.5
+
 
 # ─── Rate limiting (UNIT 8) ──────────────────────────────────────────────────
 # Off in unit 7. You turn it on and choose the numbers in unit 8, Milestone 1.

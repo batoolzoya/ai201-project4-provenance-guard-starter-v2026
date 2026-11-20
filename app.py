@@ -24,6 +24,8 @@ Routes:
     GET  /health      is the service up, and is the model loaded
 """
 
+import re
+import unicodedata
 import uuid
 
 from flask import Flask, jsonify, request
@@ -175,6 +177,30 @@ def submit():
     import scoring
     import stylometry
 
+    # Unit 8 improvement: text mostly in a non-Latin script (Arabic, Chinese…)
+    # is outside what either signal can read, so don't score it — answer
+    # "unsure" and say so in the log, instead of a confident wrong label.
+    if latin_share(text) < config.MIN_LATIN_SHARE:
+        audit.log_decision(
+            content_id=content_id,
+            creator_id=creator_id,
+            guess="unsure",
+            label=scoring.LABEL_UNSURE,
+            status="decided",
+            text_chars=len(text),
+            reason="unsupported_script",
+        )
+        return jsonify({
+            "content_id": content_id,
+            "guess": "unsure",
+            "confidence": None,
+            "label": scoring.LABEL_UNSURE,
+            "model_score": None,
+            "style_score": None,
+            "status": "decided",
+            "note": "not scored: mostly non-Latin script",
+        })
+
     # Signal one — the local language model.
     try:
         model_score = detector.model_signal(text)
@@ -213,6 +239,15 @@ def submit():
     })
 
 
+def latin_share(text):
+    """Share of the letters in text that are Latin letters (0.0 – 1.0)."""
+    letters = [c for c in text if c.isalpha()]
+    if not letters:
+        return 1.0
+    latin = sum(1 for c in letters if unicodedata.name(c, "").startswith("LATIN"))
+    return latin / len(letters)
+
+
 def _reject(creator_id, error, message, status=400):
     """Refuse a request AND leave a trace of it in the audit log."""
     audit.log_rejection(
@@ -244,9 +279,11 @@ def _check_submission(payload):
     if len(text) > config.MAX_TEXT_CHARS:
         return _reject(creator_id, "text_too_long",
                        f"text is over {config.MAX_TEXT_CHARS} characters.")
-    if len(text.split()) < config.MIN_WORDS:
+    # Unit 8 improvement: count real words (runs of letters), not anything
+    # between spaces — "!!! ??? ..." used to pass as 8 words and get a label.
+    if len(re.findall(r"[^\W\d_]+", text)) < config.MIN_WORDS:
         return _reject(creator_id, "text_too_short",
-                       f"text needs at least {config.MIN_WORDS} words to be scored.")
+                       f"text needs at least {config.MIN_WORDS} real words to be scored.")
     return None
 
 
