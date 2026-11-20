@@ -109,10 +109,18 @@ MAX_TEXT_CHARS = 20000   # more characters than this -> 400 text_too_long
 # an hour, and a script sending a thousand variations to map your thresholds.
 # Your README has to say why your numbers and not others.
 
-RATE_LIMITING_ENABLED = os.getenv("AI201_RATE_LIMITS", "0") == "1"
+# Turned on in unit 8, Milestone 1. Counted per creator_id (falls back to the
+# caller's address when there is no usable creator_id) — see app.py.
+#
+# 5 a minute: a real writer posting their own work rarely sends more than a
+# couple of pieces a minute, even pasting a batch or retrying after an error.
+# 60 a day: a prolific writer on a busy day. A script trying to map my
+# thresholds with 1,000 variations from one creator_id gets 60 a day, so it
+# needs over two weeks.
+RATE_LIMITING_ENABLED = True
 
-RATE_LIMIT_PER_MINUTE = 10
-RATE_LIMIT_PER_DAY = 200
+RATE_LIMIT_PER_MINUTE = 5
+RATE_LIMIT_PER_DAY = 60
 
 # Flask-Limiter warns loudly without this. In-memory is right for one laptop
 # and wrong for anything real — a restart forgets every count, and two copies
